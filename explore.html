@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>像素猫 · 视觉母体探索</title>
+<style>
+  :root { --ink:#3a322a; --paper:#f7f1e6; --card:#fffdf8; --accent:#f2913d; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--paper); color:var(--ink); font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif; padding:28px 16px 110px; -webkit-tap-highlight-color:transparent; }
+  header { max-width:1080px; margin:0 auto; }
+  h1 { font-size:22px; letter-spacing:1px; }
+  header p { margin-top:8px; font-size:14px; opacity:.75; line-height:1.7; }
+  .grid { max-width:1080px; margin:20px auto 0; display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:14px; }
+  .card { background:var(--card); border:2px solid #e8dfcf; border-radius:14px; padding:16px 10px 12px; text-align:center; cursor:pointer; transition:transform .12s, border-color .12s; position:relative; user-select:none; }
+  .card:hover { transform:translateY(-3px); }
+  .card:active { transform:scale(.97); }
+  .num { position:absolute; top:8px; left:10px; font-size:12px; font-weight:700; opacity:.4; }
+  canvas { width:100%; max-width:216px; image-rendering:pixelated; }
+  .name { margin-top:8px; font-size:15px; font-weight:700; }
+  .tag { margin-top:4px; font-size:12px; opacity:.6; }
+  .card.on { border-color:var(--accent); box-shadow:0 0 0 3px #f2913d33; }
+  .card.on::after { content:"就是这只"; position:absolute; top:-10px; right:10px; background:var(--accent); color:#fff; font-size:11px; padding:2px 8px; border-radius:999px; }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:#3a322a; color:#fff; padding:14px 16px; font-size:14px; text-align:center; }
+  .bar b { color:#ffc98a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>像素猫 · 视觉母体探索</h1>
+  <p>这一步只做一件事：选出「就是它」的那只猫。点一张卡片选中，然后告诉我编号。<br>哪只都不对也行——告诉我哪里不对（太胖 / 太复杂 / 颜色脏 / 没有灵魂），我重新出一批。</p>
+</header>
+<div class="grid" id="grid"></div>
+<div class="bar" id="bar">还没选。点一只你觉得「就是它」的猫。</div>
+<script src="cat.js"></script>
+<script>
+(function () {
+  var grid = document.getElementById('grid');
+  var bar = document.getElementById('bar');
+  CAT.VARIANTS.forEach(function (v, i) {
+    var n = i + 1;
+    var card = document.createElement('div');
+    card.className = 'card';
+    var num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = String(n).padStart(2, '0');
+    var cv = document.createElement('canvas');
+    cv.width = 320; cv.height = 240;
+    var name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = v.name;
+    var tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.textContent = v.tag;
+    card.appendChild(num); card.appendChild(cv); card.appendChild(name); card.appendChild(tag);
+    card.addEventListener('click', function () {
+      var on = document.querySelectorAll('.card.on');
+      for (var k = 0; k < on.length; k++) on[k].classList.remove('on');
+      card.classList.add('on');
+      bar.innerHTML = '已选：<b>' + String(n).padStart(2, '0') + ' ' + v.name + '</b> —— 回复我这个编号就行。';
+    });
+    grid.appendChild(card);
+    var ctx = cv.getContext('2d');
+    var g = CAT.buildCat(v);
+    var pal = Object.assign({}, CAT.DEF, v.palette);
+    var S = 4;
+    for (var y = 0; y < CAT.H; y++) for (var x = 0; x < CAT.W; x++) {
+      var key = g[y][x];
+      if (key === '.') continue;
+      ctx.fillStyle = CAT.pixelColor(g, x, y, pal) || '#000';
+      ctx.fillRect(x * S, y * S, S, S);
+    }
+  });
+})();
+</script>
+</body>
+</html>

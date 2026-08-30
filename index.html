@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#f8f1e5">
+<title>像素猫 · 小方糕</title>
+<style>
+  * { margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: #f8f1e5; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; user-select: none; -webkit-user-select: none; }
+  #cv { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+  #title { position: fixed; top: calc(16px + env(safe-area-inset-top)); left: 0; right: 0; text-align: center; pointer-events: none; }
+  #title b { display: block; font-size: 16px; color: #8a6f56; letter-spacing: 6px; font-weight: 600; }
+  #title span { display: block; margin-top: 5px; font-size: 11px; color: #c2a084; letter-spacing: 3px; }
+  #guide { position: fixed; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); text-align: center; pointer-events: none; }
+  #guide div { font-size: 12px; color: #c9ab8f; letter-spacing: 2px; line-height: 2.1; }
+  #hint { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); font-size: 15px; color: #c2a084; letter-spacing: 4px; opacity: 0.9; transition: opacity 1s; pointer-events: none; white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="title"><b>小方糕</b><span>一只可以摸的像素猫</span></div>
+<div id="hint">摸 摸 它 的 头</div>
+<div id="guide">
+  <div>顺着毛摸 · 它会舒服</div>
+  <div>逆着摸 · 它会不耐烦</div>
+  <div>一直不理它 · 它会睡着</div>
+</div>
+<script src="cat.js"></script>
+<script>
+(function () {
+  var SPEC = null;
+  for (var i = 0; i < CAT.VARIANTS.length; i++) if (CAT.VARIANTS[i].name === '小方糕') SPEC = CAT.VARIANTS[i];
+  var PAL = Object.assign({}, CAT.DEF, SPEC.palette);
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var hint = document.getElementById('hint');
+  var cw, ch, dpr, S, ox, oy;
+
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+
+  var SPRITES = {
+    heart: { rows: ['.XX.XX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '...X...'], color: '#e8635a', glint: [1, 1] },
+    anger: { rows: ['..X...X..', '.XXX.XXX.', '..X...X..', '.........', '..X...X..', '.XXX.XXX.', '..X...X..'], color: '#e04b3f' },
+    z: { rows: ['XXXXX', '...X.', '..X..', '.X...', 'XXXXX'], color: '#8a92a8' },
+    bang: { rows: ['XX', 'XX', 'XX', '..', 'XX'], color: '#5a4a3a' },
+    note: { rows: ['..XXX', '..X..', '..X..', '..X..', '.X...', 'XX...', 'XX...'], color: '#d98f70' }
+  };
+
+  var E = 0, annoy = 0, prevE = 0;
+  var holding = false, ptrId = null, fx = 40, fy = 8;
+  var lastPX = 0, lastPY = 0, gAcc = 0, dyAcc = 0;
+  var pose = { ear: 0, squint: 0, sway: 0, lean: 0 };
+  var blinkAt = 2600, blinkUntil = 0, twitchAt = 7000, twitchUntil = 0;
+  var microNextT = 0, hbUntil = 0, hbDir = 0, purrBumpUntil = 0;
+  var angry = false, angryUntil = 0;
+  var goodT = 0, sighed = false;
+  var asleep = false, startleUntil = 0, lastTouchT = performance.now();
+  var charms = [];
+  var hinted = false, lastMrrpT = 0, lastSighT = 0, purrDriftAt = 0;
+  var heartNextT = 0, zNextT = 0, zIdx = 0, warm = 0;
+  var angryEff = null;
+  var HEAD = { x0: 16, x1: 64, y0: 2, y1: 34 };
+
+  function resize() {
+    dpr = window.devicePixelRatio || 1;
+    cw = window.innerWidth; ch = window.innerHeight;
+    cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    S = Math.max(2, Math.floor(Math.min(cw * 0.92 / CAT.W, ch * 0.78 / CAT.H)));
+    ox = Math.round((cw - CAT.W * S) / 2);
+    oy = Math.round((ch - CAT.H * S) / 2 + ch * 0.02);
+  }
+  window.addEventListener('resize', resize);
+
+  var effects = [];
+  function spawnFx(name, gx, gy, o) {
+    o = o || {};
+    if (!o.sticky) {
+      var n = 0, nz = 0;
+      for (var i = 0; i < effects.length; i++) {
+        if (effects[i].sticky) continue;
+        if (effects[i].id === 'z') nz++; else n++;
+      }
+      if (name === 'z' ? nz >= 3 : n >= 2) return null;
+    }
+    var e = {
+      id: name, sp: SPRITES[name], color: SPRITES[name].color,
+      x: gx, y: gy, born: performance.now(),
+      life: o.life || 1500, size: o.size || 1,
+      vy: o.vy === undefined ? -3.2 : o.vy, vx: o.vx || 0,
+      wob: o.wob === undefined ? 1.2 : o.wob, wobSpd: o.wobSpd || 0.006,
+      sticky: !!o.sticky
+    };
+    effects.push(e);
+    return e;
+  }
+  function killFx(e) {
+    if (!e) return;
+    e.sticky = false;
+    e.life = (performance.now() - e.born) + 250;
+  }
+  function updateFx(tNow, dt) {
+    for (var i = effects.length - 1; i >= 0; i--) {
+      var e = effects[i];
+      if (!e.sticky) {
+        e.y += e.vy * dt / 1000;
+        e.x += e.vx * dt / 1000;
+        if (tNow - e.born > e.life) effects.splice(i, 1);
+      }
+    }
+  }
+  function drawSprite(sp, px, py, s, color, alpha) {
+    if (s < 1) s = Math.max(1, s);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    for (var r = 0; r < sp.rows.length; r++) {
+      var row = sp.rows[r];
+      for (var c = 0; c < row.length; c++) {
+        if (row.charAt(c) === 'X') ctx.fillRect(px + c * s, py + r * s, Math.ceil(s), Math.ceil(s));
+      }
+    }
+    if (sp.glint && alpha > 0.5) {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillRect(px + sp.glint[0] * s, py + sp.glint[1] * s, Math.ceil(s), Math.ceil(s));
+    }
+    ctx.globalAlpha = 1;
+  }
+  function drawFx(tNow) {
+    for (var i = 0; i < effects.length; i++) {
+      var e = effects[i];
+      var age = tNow - e.born;
+      var a = Math.min(1, age / 150);
+      if (!e.sticky) a *= Math.max(0, Math.min(1, (e.life - age) / 300));
+      var wox = e.sticky ? 0 : Math.sin(tNow * e.wobSpd + e.born) * e.wob;
+      var pulse = e.id === 'anger' ? 1 + 0.1 * Math.sin(tNow / 90) : 1;
+      drawSprite(e.sp, ox + (e.x + wox) * S, oy + e.y * S, S * e.size * pulse, e.color, a);
+    }
+  }
+
+  var AC = null, purrMaster = null, lfo = null, noiseBuf = null;
+  function makeNoise(ac) {
+    var len = ac.sampleRate * 2;
+    var buf = ac.createBuffer(1, len, ac.sampleRate);
+    var d = buf.getChannelData(0);
+    var last = 0;
+    for (var i = 0; i < len; i++) {
+      var white = Math.random() * 2 - 1;
+      last = (last + 0.02 * white) / 1.02;
+      d[i] = last * 3.5;
+    }
+    return buf;
+  }
+  function ensureAudio() {
+    if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+    noiseBuf = makeNoise(AC);
+    var src = AC.createBufferSource();
+    src.buffer = noiseBuf; src.loop = true;
+    var lp = AC.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 240; lp.Q.value = 0.7;
+    var am = AC.createGain(); am.gain.value = 0.55;
+    lfo = AC.createOscillator(); lfo.frequency.value = 24;
+    var lfoG = AC.createGain(); lfoG.gain.value = 0.45;
+    lfo.connect(lfoG); lfoG.connect(am.gain);
+    purrMaster = AC.createGain(); purrMaster.gain.value = 0;
+    src.connect(lp); lp.connect(am); am.connect(purrMaster); purrMaster.connect(AC.destination);
+    src.start(); lfo.start();
+  }
+  function mrrpSound(now, o) {
+    o = o || {};
+    if (!AC) return;
+    if (now - lastMrrpT < (o.throttle || 1200)) return;
+    lastMrrpT = now;
+    var base = o.base || 540, end = o.end || 290, vol = o.vol || 0.09;
+    var count = o.count || 2, gap = o.gap || 0.14, dur = o.dur || 0.11;
+    var t0 = AC.currentTime;
+    for (var i = 0; i < count; i++) {
+      var dt = i * gap;
+      var osc = AC.createOscillator(), gn = AC.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(base * (0.92 + Math.random() * 0.16), t0 + dt);
+      osc.frequency.exponentialRampToValueAtTime(end, t0 + dt + dur * 0.8);
+      gn.gain.setValueAtTime(0.0001, t0 + dt);
+      gn.gain.exponentialRampToValueAtTime(vol, t0 + dt + 0.02);
+      gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + dur);
+      osc.connect(gn); gn.connect(AC.destination);
+      osc.start(t0 + dt); osc.stop(t0 + dt + dur + 0.03);
+    }
+  }
+  function maoSound(now) {
+    mrrpSound(now, { base: 760, end: 430, vol: 0.12, count: 1, dur: 0.22, throttle: 400 });
+  }
+  function sighSound(now) {
+    if (!AC || now - lastSighT < 4000) return;
+    lastSighT = now;
+    var src = AC.createBufferSource();
+    src.buffer = noiseBuf; src.loop = true;
+    var lp = AC.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 750;
+    var gn = AC.createGain();
+    var t0 = AC.currentTime;
+    gn.gain.setValueAtTime(0.0001, t0);
+    gn.gain.exponentialRampToValueAtTime(0.13, t0 + 0.35);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.15);
+    src.connect(lp); lp.connect(gn); gn.connect(AC.destination);
+    src.start(t0); src.stop(t0 + 1.2);
+  }
+
+  function toGrid(e) {
+    var r = cv.getBoundingClientRect();
+    return { gx: (e.clientX - r.left - ox) / S, gy: (e.clientY - r.top - oy) / S };
+  }
+  function inHead(gx, gy) {
+    return gx >= HEAD.x0 && gx <= HEAD.x1 && gy >= HEAD.y0 && gy <= HEAD.y1;
+  }
+
+  cv.addEventListener('pointerdown', function (e) {
+    ensureAudio();
+    var now = performance.now();
+    lastTouchT = now;
+    if (asleep) {
+      asleep = false;
+      startleUntil = now + 600;
+      mrrpSound(now, { base: 840, end: 520, vol: 0.11, count: 1, dur: 0.15, throttle: 200 });
+      spawnFx('bang', 40 + pose.lean, 3, { life: 700, vy: -1.2, wob: 0.5 });
+    }
+    if (ptrId !== null) return;
+    ptrId = e.pointerId;
+    try { cv.setPointerCapture(ptrId); } catch (err) {}
+    var p = toGrid(e);
+    fx = p.gx; fy = p.gy; lastPX = e.clientX; lastPY = e.clientY;
+    holding = inHead(fx, fy);
+    if (holding && !angry) mrrpSound(now, {});
+    e.preventDefault();
+  });
+  cv.addEventListener('pointermove', function (e) {
+    var p = toGrid(e);
+    fx = p.gx; fy = p.gy;
+    if (ptrId === e.pointerId && holding && !angry) {
+      var dg = (Math.abs(e.clientX - lastPX) + Math.abs(e.clientY - lastPY)) / S;
+      gAcc += dg;
+      dyAcc += (e.clientY - lastPY) / S;
+      lastTouchT = performance.now();
+    }
+    lastPX = e.clientX; lastPY = e.clientY;
+    if (ptrId === null) cv.style.cursor = inHead(fx, fy) ? 'pointer' : 'default';
+  });
+  function release(e) {
+    if (ptrId !== e.pointerId) return;
+    if (E >= 0.7 && !angry) {
+      var now = performance.now();
+      charms.push({ at: now + 550, fn: function () { blinkUntil = performance.now() + 150; } });
+      charms.push({ at: now + 980, fn: function () { twitchUntil = performance.now() + 170; } });
+    }
+    ptrId = null; holding = false; gAcc = 0; dyAcc = 0;
+  }
+  cv.addEventListener('pointerup', release);
+  cv.addEventListener('pointercancel', release);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      E = 0; annoy = 0; holding = false; ptrId = null; angry = false;
+      effects.length = 0; angryEff = null;
+      if (purrMaster) purrMaster.gain.value = 0;
+    }
+  });
+
+  function mix3(a, b, k) {
+    return [Math.round(a[0] + (b[0] - a[0]) * k), Math.round(a[1] + (b[1] - a[1]) * k), Math.round(a[2] + (b[2] - a[2]) * k)];
+  }
+
+  function render(tNow) {
+    ctx.clearRect(0, 0, cw, ch);
+    var cxx = ox + CAT.W / 2 * S;
+    var cyc = oy + 24 * S;
+    var wv = clamp(warm, -1, 1);
+    if (wv > 0.02) {
+      var g = ctx.createRadialGradient(cxx, cyc, S * 6, cxx, cyc, S * 58);
+      g.addColorStop(0, 'rgba(255,186,120,' + (0.16 * wv).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(255,186,120,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch);
+    } else if (wv < -0.02) {
+      var g2 = ctx.createRadialGradient(cxx, cyc, S * 6, cxx, cyc, S * 58);
+      g2.addColorStop(0, 'rgba(120,150,190,' + (0.15 * -wv).toFixed(3) + ')');
+      g2.addColorStop(1, 'rgba(120,150,190,0)');
+      ctx.fillStyle = g2; ctx.fillRect(0, 0, cw, ch);
+    }
+    var NEUTRAL = [248, 241, 229], WARMC = [252, 232, 206], COOLC = [235, 240, 247];
+    var bg = wv > 0 ? mix3(NEUTRAL, WARMC, wv) : mix3(NEUTRAL, COOLC, -wv);
+    document.body.style.backgroundColor = 'rgb(' + bg[0] + ',' + bg[1] + ',' + bg[2] + ')';
+
+    var bp = asleep ? 5200 : 3400;
+    var bAmp = asleep ? 1.6 : 1;
+    var breath = Math.sin(tNow / bp * Math.PI * 2);
+    var cby = oy + (CAT.H - 3) * S;
+    ctx.fillStyle = 'rgba(150, 110, 80, 0.13)';
+    ctx.beginPath();
+    ctx.ellipse(cxx, cby + 2, 24 * S * (1 - 0.01 * breath * bAmp), 4.2 * S, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    var bx = 1 + 0.006 * breath * bAmp, by = 1 - 0.009 * breath * bAmp;
+    ctx.save();
+    ctx.translate(cxx, cby);
+    ctx.scale(bx, by);
+    ctx.translate(-cxx, -cby);
+
+    var grid = CAT.buildCat(SPEC, {
+      earPress: pose.ear, eyeSquint: pose.squint,
+      tailSway: pose.sway, headLean: pose.lean
+    });
+    for (var y = 0; y < CAT.H; y++) for (var x = 0; x < CAT.W; x++) {
+      if (grid[y][x] === '.') continue;
+      ctx.fillStyle = CAT.pixelColor(grid, x, y, PAL);
+      ctx.fillRect(ox + x * S, oy + y * S, S, S);
+    }
+    ctx.restore();
+
+    drawFx(tNow);
+  }
+
+  var tPrev = performance.now();
+  function loop(tNow) {
+    var dt = Math.min(50, tNow - tPrev);
+    tPrev = tNow;
+
+    if (gAcc >= 2.2) {
+      if (holding && !angry) {
+        if (dyAcc > 0.5) {
+          E = Math.min(1, E + 0.045);
+          annoy = Math.max(0, annoy - 0.06);
+        } else if (dyAcc < -0.5) {
+          E = Math.min(1, E + 0.015);
+          annoy = Math.min(1, annoy + 0.05);
+          if (Math.random() < 0.35) twitchUntil = tNow + 150;
+        } else {
+          E = Math.min(1, E + 0.025);
+        }
+        if (E > 0.8 && gAcc > 6) annoy = Math.min(1, annoy + 0.04);
+      }
+      gAcc = 0; dyAcc = 0;
+    }
+
+    if (holding) {
+      if (E > 0.45) E = Math.max(0.45, E - dt * 0.00012);
+    } else {
+      E = Math.max(0, E - dt * 0.0004);
+    }
+    if (!holding) annoy = Math.max(0, annoy - dt * 0.00025);
+
+    if (!angry && annoy > 0.85 && !asleep) {
+      angry = true;
+      angryUntil = tNow + 1500;
+      maoSound(tNow);
+      E = E * 0.4;
+    }
+    if (angry && tNow > angryUntil) {
+      angry = false;
+      annoy = 0.2;
+      blinkUntil = tNow + 180;
+    }
+
+    if (!asleep && !angry && tNow > blinkAt) {
+      if (pose.squint < 0.3) blinkUntil = tNow + 140;
+      blinkAt = tNow + 2400 + Math.random() * 3600;
+    }
+    var blink = tNow < blinkUntil;
+    if (!asleep && !angry && tNow > twitchAt) {
+      if (E < 0.15) twitchUntil = tNow + 170;
+      twitchAt = tNow + 6000 + Math.random() * 8000;
+    }
+    var twitch = tNow < twitchUntil;
+
+    if (holding && !angry && !asleep && E > 0.55 && tNow > microNextT) {
+      microNextT = tNow + 1400 + Math.random() * 2000;
+      var r = Math.random();
+      if (r < 0.45) {
+        hbUntil = tNow + 340;
+        hbDir = (fx - 40) >= 0 ? 1 : -1;
+        mrrpSound(tNow, { base: 500, end: 330, vol: 0.07, count: 1, dur: 0.1, throttle: 300 });
+      } else if (r < 0.7) {
+        mrrpSound(tNow, { vol: 0.08, throttle: 300 });
+      } else if (r < 0.9) {
+        twitchUntil = tNow + 160;
+      } else {
+        purrBumpUntil = tNow + 700;
+      }
+    }
+
+    if (holding && E > 0.9 && !angry && !asleep) {
+      goodT += dt;
+      if (goodT > 1200 && !sighed) {
+        sighed = true;
+        sighSound(tNow);
+        blinkUntil = tNow + 480;
+        hbUntil = tNow + 400;
+        hbDir = (fx - 40) >= 0 ? 1 : -1;
+        spawnFx('note', 40 + pose.lean + (fx - 40) * 0.3, 6, { life: 1600, vy: -2.6, vx: 0.4 });
+      }
+    } else if (E < 0.5) {
+      goodT = 0; sighed = false;
+    }
+
+    if (!holding && !asleep && E < 0.05 && annoy < 0.1 && tNow - lastTouchT > 25000) {
+      asleep = true;
+    }
+
+    if (!angry && !asleep) {
+      if (E > 0.55 && prevE <= 0.55) {
+        spawnFx('heart', 40 + pose.lean - 6 - Math.random() * 5, 7, { life: 1500 });
+      }
+      if (E > 0.75 && tNow > heartNextT) {
+        spawnFx('heart', 40 + pose.lean + (Math.random() * 12 - 6), 7, { life: 1500 });
+        heartNextT = tNow + 1900 + Math.random() * 1700;
+      }
+    }
+    if (annoy > 0.5 && !angryEff && !asleep) {
+      angryEff = spawnFx('anger', 40 + pose.lean + 9, 2, { sticky: true, life: 1e9, vy: 0, wob: 0.4, wobSpd: 0.004, size: 0.8, max: 99 });
+    }
+    if (angryEff) {
+      if (annoy < 0.32 || asleep) { killFx(angryEff); angryEff = null; }
+      else { angryEff.x = 40 + pose.lean + 9; angryEff.size = angry ? 1.05 : 0.8; }
+    }
+    if (asleep && tNow > zNextT) {
+      zIdx++;
+      spawnFx('z', 40 + pose.lean + 7, 8, { life: 2300, size: 0.55 + 0.18 * (zIdx % 3), vx: 0.7, vy: -2.2, max: 3 });
+      zNextT = tNow + 950 + Math.random() * 500;
+    }
+
+    var wTarget;
+    if (angry) wTarget = -0.8;
+    else if (annoy > 0.45) wTarget = -annoy * 0.8;
+    else if (asleep) wTarget = 0.08;
+    else wTarget = E * 0.9;
+    warm += (wTarget - warm) * (1 - Math.exp(-dt / 700));
+    prevE = E;
+
+    for (var ci = charms.length - 1; ci >= 0; ci--) {
+      if (tNow >= charms[ci].at) { charms[ci].fn(); charms.splice(ci, 1); }
+    }
+
+    var earT, sqT, swayT, leanT;
+    if (angry) {
+      earT = 0.95; sqT = 0;
+      swayT = Math.sin(tNow / 1000 * 9) * 0.9;
+      leanT = -clamp((fx - 40) / 26, -1, 1) * 3.2;
+    } else if (asleep) {
+      earT = 0.3; sqT = 1; swayT = 0; leanT = 0.6;
+    } else {
+      earT = holding ? 0.3 + 0.6 * E : 0;
+      sqT = clamp((E - 0.25) / 0.45, 0, 1);
+      if (annoy > 0.45) swayT = Math.sin(tNow / 1000 * 9) * 0.9;
+      else if (E > 0.3) swayT = Math.sin(tNow / 1000 * 2.6) * E;
+      else swayT = 0;
+      leanT = holding ? clamp((fx - 40) / 26, -1, 1) * 1.8 * Math.min(1, E + 0.4) : 0;
+      if (tNow < hbUntil) leanT += hbDir * 2.4;
+    }
+    if (twitch && !angry) earT = Math.max(earT, 0.5);
+    if (blink && !angry) sqT = 1;
+    if (tNow < startleUntil) { sqT = 0; earT = 0; }
+    leanT = clamp(leanT, -4, 4);
+
+    var kFast = 1 - Math.exp(-dt / 70);
+    var kSlow = 1 - Math.exp(-dt / 130);
+    pose.ear += (earT - pose.ear) * kFast;
+    pose.squint += (sqT - pose.squint) * kFast;
+    pose.sway += (swayT - pose.sway) * kFast;
+    pose.lean += (leanT - pose.lean) * kSlow;
+
+    if (!hinted && E > 0.3) { hinted = true; hint.style.opacity = '0'; }
+
+    var purrT = (angry || asleep || annoy > 0.55) ? 0 : E * 0.35;
+    if (tNow < purrBumpUntil) purrT = Math.min(0.5, purrT + 0.1);
+    if (purrMaster && AC) purrMaster.gain.setTargetAtTime(purrT, AC.currentTime, 0.09);
+    if (lfo && AC && tNow > purrDriftAt) {
+      lfo.frequency.setTargetAtTime(21 + Math.random() * 7, AC.currentTime, 0.5);
+      purrDriftAt = tNow + 2000 + Math.random() * 2500;
+    }
+
+    updateFx(tNow, dt);
+    render(tNow);
+    requestAnimationFrame(loop);
+  }
+
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

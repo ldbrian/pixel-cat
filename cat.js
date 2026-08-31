@@ -178,6 +178,7 @@ function buildCat(o, pose) {
   earDraw(g, o, hcx + headHalf - 6, earBaseHalf, earPress);
 
   pawDraw(g, cx);
+  frontPawDraw(g, cx);
 
   var tc = o.tailColor || 'B';
   var maxHalf = rows.reduce(function (a, b) { return Math.max(a, b); }, 0);
@@ -250,12 +251,29 @@ function earDraw(g, o, ex, baseHalf, press) {
   }
 }
 
+function frontPawDraw(g, cx) {
+  var spans = [
+    { y: 49, a: 6, b: 1 },
+    { y: 50, a: 7, b: 0 }, { y: 51, a: 7, b: 0 }, { y: 52, a: 7, b: 0 },
+    { y: 53, a: 6, b: 1 },
+    { y: 54, a: 5, b: 1 }
+  ];
+  spans.forEach(function (s) {
+    for (var x = cx - s.a; x <= cx - s.b; x++) fill(g, x, s.y, 'B');
+    for (var x2 = cx + s.b; x2 <= cx + s.a; x2++) fill(g, x2, s.y, 'B');
+  });
+  [50, 51].forEach(function (yy) {
+    fill(g, cx - 3, yy, 'D', 'B');
+    fill(g, cx + 3, yy, 'D', 'B');
+  });
+}
+
 function pawDraw(g, cx) {
   var spans = [
-    { y: 49, a: 15, b: 7 },
-    { y: 50, a: 17, b: 5 }, { y: 51, a: 17, b: 5 }, { y: 52, a: 17, b: 5 },
-    { y: 53, a: 16, b: 6 },
-    { y: 54, a: 14, b: 8 }
+    { y: 49, a: 15, b: 9 },
+    { y: 50, a: 16, b: 8 }, { y: 51, a: 16, b: 8 }, { y: 52, a: 16, b: 8 },
+    { y: 53, a: 15, b: 9 },
+    { y: 54, a: 14, b: 10 }
   ];
   spans.forEach(function (s) {
     for (var x = cx - s.a; x <= cx - s.b; x++) fill(g, x, s.y, 'B');

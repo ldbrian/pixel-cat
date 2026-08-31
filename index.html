@@ -16,6 +16,8 @@
   #guide { position: fixed; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); text-align: center; pointer-events: none; }
   #guide div { font-size: 12px; color: #c9ab8f; letter-spacing: 2px; line-height: 2.1; }
   #hint { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); font-size: 15px; color: #c2a084; letter-spacing: 4px; opacity: 0.9; transition: opacity 1s; pointer-events: none; white-space: nowrap; }
+  #shareBtn { position: fixed; top: calc(16px + env(safe-area-inset-top)); right: 16px; font-size: 12px; color: #a0886a; border: 1px solid #d8c6ac; background: rgba(255,253,248,0.7); padding: 5px 14px; border-radius: 999px; cursor: pointer; transition: background .2s, color .2s; user-select: none; -webkit-tap-highlight-color: transparent; }
+  #shareBtn:active { background: #8a6f56; color: #fff; }
 </style>
 </head>
 <body>
@@ -27,8 +29,11 @@
   <div>逆着摸 · 它会不耐烦</div>
   <div>一直不理它 · 它会睡着</div>
 </div>
+<div id="shareBtn">分享</div>
 <script src="parts-data.js"></script>
 <script src="parts.js"></script>
+<script>window.STUDIO_CONFIG = { siteId: 'pixel-cat' };</script>
+<script src="studio-track.js"></script>
 <script>
 (function () {
   var SPEC = null;
@@ -62,7 +67,7 @@
   var hinted = false, lastMrrpT = 0, lastSighT = 0, purrDriftAt = 0;
   var heartNextT = 0, zNextT = 0, zIdx = 0, warm = 0;
   var angryEff = null;
-  var bellyDefendUntil = 0, tailFlickUntil = 0;
+  var bellyDefendUntil = 0, tailFlickUntil = 0, interactFired = false;
   var HEAD = { x0: 16, x1: 64, y0: 2, y1: 34 };
   var BELLY = { x0: 28, x1: 52, y0: 34, y1: 45 };
   var TAIL = { x0: 21, x1: 36, y0: 44, y1: 54 };
@@ -229,6 +234,7 @@
 
   cv.addEventListener('pointerdown', function (e) {
     ensureAudio();
+    if (window.STUDIO) window.STUDIO.start();
     var now = performance.now();
     lastTouchT = now;
     if (asleep) {
@@ -433,6 +439,7 @@
     if (!angry && !asleep) {
       if (E > 0.55 && prevE <= 0.55) {
         spawnFx('heart', 40 + pose.lean - 6 - Math.random() * 5, 7, { life: 1500 });
+        if (window.STUDIO && !interactFired) { interactFired = true; window.STUDIO.interact({ kind: 'pet' }); }
       }
       if (E > 0.75 && tNow > heartNextT) {
         spawnFx('heart', 40 + pose.lean + (Math.random() * 12 - 6), 7, { life: 1500 });
@@ -519,6 +526,20 @@
 
   resize();
   requestAnimationFrame(loop);
+
+  var shareBtn = document.getElementById('shareBtn');
+  shareBtn.addEventListener('click', function () {
+    if (window.STUDIO) window.STUDIO.share({ url: window.location.href });
+    var title = '小方糕 · 一只可以摸的像素猫';
+    var url = window.location.href;
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      navigator.share({ title: title, url: url }).catch(function () {});
+    } else {
+      try { navigator.clipboard.writeText(url); } catch (e) {}
+      shareBtn.textContent = '已复制';
+      setTimeout(function () { shareBtn.textContent = '分享'; }, 1600);
+    }
+  });
 })();
 </script>
 </body>

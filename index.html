@@ -18,10 +18,7 @@
   #hint { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%); font-size: 15px; color: #c2a084; letter-spacing: 4px; opacity: 0.9; transition: opacity 1s; pointer-events: none; white-space: nowrap; }
   #shareBtn { position: fixed; top: calc(16px + env(safe-area-inset-top)); right: 16px; font-size: 12px; color: #a0886a; border: 1px solid #d8c6ac; background: rgba(255,253,248,0.7); padding: 5px 14px; border-radius: 999px; cursor: pointer; transition: background .2s, color .2s; user-select: none; -webkit-tap-highlight-color: transparent; }
   #shareBtn:active { background: #8a6f56; color: #fff; }
-  #grrBubble { position: fixed; top: calc(52px + env(safe-area-inset-top)); right: 20px; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 5; }
-  #grrBubble span { display: inline-block; background: #fffdf8; color: #8a5a3a; font-size: 20px; font-weight: 700; line-height: 1; padding: 8px 14px; border-radius: 14px; border: 2px solid #e8cfae; box-shadow: 0 2px 8px rgba(138,90,58,.18); animation: grrBob .7s ease-in-out infinite; }
-  #grrBubble::after { content: ''; position: absolute; bottom: -8px; left: 26px; border: 7px solid transparent; border-top-color: #e8cfae; border-bottom: none; }
-  @keyframes grrBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  #grrBubble { position: fixed; z-index: 5; opacity: 0; pointer-events: none; transition: opacity .25s; image-rendering: pixelated; image-rendering: crisp-edges; }
 </style>
 </head>
 <body>
@@ -34,7 +31,7 @@
   <div>一直不理它 · 它会睡着</div>
 </div>
 <div id="shareBtn">分享</div>
-<div id="grrBubble"><span>咕</span></div>
+<canvas id="grrBubble" width="40" height="30"></canvas>
 <script src="parts-data.js"></script>
 <script src="parts.js"></script>
 <script>window.STUDIO_CONFIG = { siteId: 'pixel-cat' };</script>
@@ -73,7 +70,23 @@
   var heartNextT = 0, zNextT = 0, zIdx = 0, warm = 0;
   var angryEff = null;
   var bellyDefendUntil = 0, tailFlickUntil = 0, interactFired = false;
-  var grrEl = document.getElementById('grrBubble'), lastAngerVis = false;
+  var grrCv = document.getElementById('grrBubble'), grrCtx = grrCv.getContext('2d'), lastAngerVis = false;
+  function drawGrr() {
+    grrCv.width = 40; grrCv.height = 30;
+    var g = grrCtx, O = '#8a5a3a', F = '#fffdf8';
+    g.clearRect(0, 0, 40, 30);
+    g.fillStyle = F;
+    g.fillRect(3, 6, 34, 17);
+    g.fillStyle = O;
+    g.fillRect(7, 3, 26, 1); g.fillRect(4, 4, 32, 1); g.fillRect(3, 5, 34, 1);
+    g.fillRect(2, 6, 1, 17); g.fillRect(37, 6, 1, 17);
+    g.fillRect(3, 23, 34, 1); g.fillRect(4, 24, 32, 1); g.fillRect(7, 25, 26, 1);
+    g.fillRect(15, 25, 10, 1); g.fillRect(16, 26, 8, 1); g.fillRect(17, 27, 6, 1); g.fillRect(18, 28, 4, 1); g.fillRect(19, 29, 2, 1);
+    g.font = 'bold 17px "Microsoft YaHei","PingFang SC",sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('咕', 20, 14.5);
+  }
+  drawGrr();
   var HEAD = { x0: 16, x1: 64, y0: 2, y1: 34 };
   var BELLY = { x0: 28, x1: 52, y0: 34, y1: 45 };
   var TAIL = { x0: 21, x1: 36, y0: 44, y1: 54 };
@@ -93,6 +106,9 @@
     S = Math.max(2, Math.floor(Math.min(cw * 0.92 / CAT.W, ch * 0.78 / CAT.H)));
     ox = Math.round((cw - CAT.W * S) / 2);
     oy = Math.round((ch - CAT.H * S) / 2 + ch * 0.02);
+    var gs = Math.max(2, Math.round(S * 0.5));
+    grrCv.style.width = (40 * gs) + 'px';
+    grrCv.style.height = (30 * gs) + 'px';
   }
   window.addEventListener('resize', resize);
 
@@ -181,10 +197,10 @@
     var src = AC.createBufferSource();
     src.buffer = noiseBuf; src.loop = true;
     var lp = AC.createBiquadFilter();
-    lp.type = 'lowpass'; lp.frequency.value = 240; lp.Q.value = 0.7;
-    var am = AC.createGain(); am.gain.value = 0.55;
-    lfo = AC.createOscillator(); lfo.frequency.value = 24;
-    var lfoG = AC.createGain(); lfoG.gain.value = 0.45;
+    lp.type = 'lowpass'; lp.frequency.value = 140; lp.Q.value = 1.0;
+    var am = AC.createGain(); am.gain.value = 0.7;
+    lfo = AC.createOscillator(); lfo.frequency.value = 25;
+    var lfoG = AC.createGain(); lfoG.gain.value = 0.12;
     lfo.connect(lfoG); lfoG.connect(am.gain);
     purrMaster = AC.createGain(); purrMaster.gain.value = 0;
     src.connect(lp); lp.connect(am); am.connect(purrMaster); purrMaster.connect(AC.destination);
@@ -482,8 +498,10 @@
     var showAnger = (tNow < bellyDefendUntil || angryEff !== null);
     if (showAnger !== lastAngerVis) {
       lastAngerVis = showAnger;
-      grrEl.style.opacity = showAnger ? '1' : '0';
+      grrCv.style.opacity = showAnger ? '1' : '0';
     }
+    grrCv.style.left = (ox + (40 + 20 + pose.lean) * S + 6) + 'px';
+    grrCv.style.top = (oy + 4 * S) + 'px';
     if (angry) {
       earT = 0.95; sqT = 0;
       swayT = Math.sin(tNow / 1000 * 9) * 0.9;

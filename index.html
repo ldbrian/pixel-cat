@@ -339,7 +339,7 @@
     var grid = CAT.buildCat(SPEC, {
       earPress: pose.ear, eyeSquint: pose.squint,
       tailSway: pose.sway, headLean: pose.lean,
-      angry: angry ? 1 : 0
+      angry: (tNow < bellyDefendUntil || angryEff !== null) ? 1 : 0
     });
     for (var y = 0; y < CAT.H; y++) for (var x = 0; x < CAT.W; x++) {
       if (grid[y][x] === '.') continue;

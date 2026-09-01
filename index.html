@@ -193,17 +193,18 @@
     if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
     try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
     noiseBuf = makeNoise(AC);
-    var src = AC.createBufferSource();
-    src.buffer = noiseBuf; src.loop = true;
+    // 呼噜：纯合成（低频锯齿 + 低通 + 25Hz 韵律），不用随机噪声（噪声=风声/沸腾声）
+    var purr = AC.createOscillator();
+    purr.type = 'sawtooth'; purr.frequency.value = 55;
     var lp = AC.createBiquadFilter();
-    lp.type = 'lowpass'; lp.frequency.value = 140; lp.Q.value = 1.0;
-    var am = AC.createGain(); am.gain.value = 0.7;
+    lp.type = 'lowpass'; lp.frequency.value = 200; lp.Q.value = 0.9;
+    var am = AC.createGain(); am.gain.value = 0.5;
     lfo = AC.createOscillator(); lfo.frequency.value = 25;
-    var lfoG = AC.createGain(); lfoG.gain.value = 0.12;
+    var lfoG = AC.createGain(); lfoG.gain.value = 0.35;
     lfo.connect(lfoG); lfoG.connect(am.gain);
     purrMaster = AC.createGain(); purrMaster.gain.value = 0;
-    src.connect(lp); lp.connect(am); am.connect(purrMaster); purrMaster.connect(AC.destination);
-    src.start(); lfo.start();
+    purr.connect(lp); lp.connect(am); am.connect(purrMaster); purrMaster.connect(AC.destination);
+    purr.start(); lfo.start();
   }
   function mrrpSound(now, o) {
     o = o || {};
@@ -235,11 +236,11 @@
     var src = AC.createBufferSource();
     src.buffer = noiseBuf; src.loop = true;
     var lp = AC.createBiquadFilter();
-    lp.type = 'lowpass'; lp.frequency.value = 750;
+    lp.type = 'lowpass'; lp.frequency.value = 600;
     var gn = AC.createGain();
     var t0 = AC.currentTime;
     gn.gain.setValueAtTime(0.0001, t0);
-    gn.gain.exponentialRampToValueAtTime(0.13, t0 + 0.35);
+    gn.gain.exponentialRampToValueAtTime(0.09, t0 + 0.35);
     gn.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.15);
     src.connect(lp); lp.connect(gn); gn.connect(AC.destination);
     src.start(t0); src.stop(t0 + 1.2);
@@ -540,7 +541,7 @@
 
     if (!hinted && E > 0.3) { hinted = true; hint.style.opacity = '0'; }
 
-    var purrT = (angry || asleep || annoy > 0.55) ? 0 : E * 0.35;
+    var purrT = (angry || asleep || annoy > 0.55) ? 0 : E * 0.22;
     if (tNow < purrBumpUntil) purrT = Math.min(0.5, purrT + 0.1);
     if (purrMaster && AC) purrMaster.gain.setTargetAtTime(purrT, AC.currentTime, 0.09);
     if (lfo && AC && tNow > purrDriftAt) {

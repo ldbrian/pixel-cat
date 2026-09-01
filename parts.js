@@ -49,6 +49,7 @@
     var press = pose.earPress || 0;
     var squint = pose.eyeSquint || 0;
     var sway = pose.tailSway || 0;
+    var angry = pose.angry || 0;
     var lean = Math.max(-4, Math.min(4, Math.round(pose.headLean || 0)));
     var g = newGrid();
     shadeGrid = newGrid();
@@ -56,7 +57,7 @@
     drawTail(g, shadeGrid, P.tail, sway);
     drawPart(g, shadeGrid, P.head, lean, 0);
     drawPart(g, shadeGrid, press > 0.35 ? P['ears-down'] : P['ears-up'], lean, 0);
-    drawPart(g, shadeGrid, squint > 0.55 ? P['eyes-squint'] : P['eyes-open'], lean, 0);
+    drawPart(g, shadeGrid, angry ? P['eyes-angry'] : (squint > 0.55 ? P['eyes-squint'] : P['eyes-open']), lean, 0);
     return g;
   }
 

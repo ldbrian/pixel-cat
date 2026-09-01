@@ -102,7 +102,10 @@ function applyFace(g, o, pose) {
   var sq = pose.eyeSquint || 0;
   var off = o.eyeOff || 10;
   var y1 = 17;
-  if (sq > 0.55) {
+  if (pose.eyeAngry) {
+    fill(g, cx - off - 1, 17, 'E'); fill(g, cx - off, 18, 'E'); fill(g, cx - off + 1, 19, 'E');
+    fill(g, cx + off + 1, 17, 'E'); fill(g, cx + off, 18, 'E'); fill(g, cx + off - 1, 19, 'E');
+  } else if (sq > 0.55) {
     if (o.eye === 'wide') {
       [-2, -1, 0, 1, 2].forEach(function (dx) {
         fill(g, cx - off + dx, Math.abs(dx) === 2 ? 20 : 19, 'E');

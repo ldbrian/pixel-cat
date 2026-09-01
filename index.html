@@ -72,16 +72,15 @@
   var bellyDefendUntil = 0, tailFlickUntil = 0, interactFired = false;
   var grrCv = document.getElementById('grrBubble'), grrCtx = grrCv.getContext('2d'), lastAngerVis = false;
   function drawGrr() {
-    grrCv.width = 40; grrCv.height = 30;
+    grrCv.width = 40; grrCv.height = 26;
     var g = grrCtx, O = '#8a5a3a', F = '#fffdf8';
-    g.clearRect(0, 0, 40, 30);
+    g.clearRect(0, 0, 40, 26);
     g.fillStyle = F;
     g.fillRect(3, 6, 34, 17);
     g.fillStyle = O;
     g.fillRect(7, 3, 26, 1); g.fillRect(4, 4, 32, 1); g.fillRect(3, 5, 34, 1);
     g.fillRect(2, 6, 1, 17); g.fillRect(37, 6, 1, 17);
     g.fillRect(3, 23, 34, 1); g.fillRect(4, 24, 32, 1); g.fillRect(7, 25, 26, 1);
-    g.fillRect(15, 25, 10, 1); g.fillRect(16, 26, 8, 1); g.fillRect(17, 27, 6, 1); g.fillRect(18, 28, 4, 1); g.fillRect(19, 29, 2, 1);
     g.font = 'bold 17px "Microsoft YaHei","PingFang SC",sans-serif';
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText('咕', 20, 14.5);
@@ -108,7 +107,7 @@
     oy = Math.round((ch - CAT.H * S) / 2 + ch * 0.02);
     var gs = Math.max(2, Math.round(S * 0.5));
     grrCv.style.width = (40 * gs) + 'px';
-    grrCv.style.height = (30 * gs) + 'px';
+    grrCv.style.height = (26 * gs) + 'px';
   }
   window.addEventListener('resize', resize);
 

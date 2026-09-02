@@ -54,8 +54,7 @@
     z: { rows: ['XXXXX', '...X.', '..X..', '.X...', 'XXXXX'], color: '#8a92a8' },
     bang: { rows: ['XX', 'XX', 'XX', '..', 'XX'], color: '#5a4a3a' },
     note: { rows: ['..XXX', '..X..', '..X..', '..X..', '.X...', 'XX...', 'XX...'], color: '#d98f70' },
-    dot: { rows: ['X.....X', '.X...X.', '..X.X..', '...X...', '..X.X..', '.X...X.', 'X.....X'], color: '#7eb8da' },
-    dot2: { rows: ['..X.X..', '.X...X.', 'X.....X', '...X...', 'X.....X', '.X...X.', '..X.X..'], color: '#d4a0c0' },
+    dot: { rows: ['.X.', 'XXX', '.X.'], color: '#e8a060', glint: [1, 0] },
     dust: { rows: ['..X..', '.XXX.', 'XXXXX', '.XXX.', '..X..'], color: '#c9ab8f' }
   };
 
@@ -180,7 +179,7 @@
     var t = (dot.state !== 'hidden' && !holding) ? dot.x : fx;
     var now = performance.now();
     if (now < shyUntil) return clamp((40 - t) / 40, -1, 1) * 2;
-    if (dot.state !== 'hidden' && !holding) return clamp((t - 40) / 40, -1, 1) * 5;
+    if (dot.state !== 'hidden' && !holding) return clamp((t - 40) / 40, -1, 1) * 8;
     var amp = level >= 1 ? 2.6 : 2;
     return clamp((t - 40) / 40, -1, 1) * amp;
   }
@@ -310,10 +309,17 @@
     var remain = dot.life - age;
     var fadeOut = Math.min(1, remain / 600);
     var a = fadeIn * fadeOut;
-    var wingFrame = Math.floor(tNow / 150) % 2;
-    var sp = wingFrame === 0 ? SPRITES.dot : SPRITES.dot2;
-    var bob = Math.sin(tNow / 300) * 1.5;
-    drawSprite(sp, ox + dot.x * S, oy + (dot.y + bob) * S, S * 1.4, sp.color, a);
+    var pulse = 1 + 0.2 * Math.sin(tNow / 200);
+    var bob = Math.sin(tNow / 400) * 1;
+    var dx = ox + dot.x * S;
+    var dy = oy + (dot.y + bob) * S;
+    ctx.globalAlpha = a * 0.25;
+    ctx.fillStyle = '#f0c878';
+    ctx.beginPath();
+    ctx.arc(dx + S * 1.5, dy + S * 1.5, S * 3 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    drawSprite(SPRITES.dot, dx, dy, S * 1.2, '#e8a060', a);
   }
   function dotInZone() {
     return dot.state !== 'hidden' && dot.x >= DOT_ZONE.x0 && dot.x <= DOT_ZONE.x1 && dot.y >= DOT_ZONE.y0 && dot.y <= DOT_ZONE.y1;

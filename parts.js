@@ -33,8 +33,9 @@
       if (c) {
         var gx = part.x0 + x, gy = part.y0 + y;
         var lr = 0;
-        if (lift > 0 && gx <= startX + 1) lr = lift;
-        else if (lift > 1 && gx <= startX + 3) lr = lift - 1;
+        var rightEdge = startX + part.w - 1;
+        if (lift > 0 && gx >= rightEdge - 1) lr = lift;
+        else if (lift > 1 && gx >= rightEdge - 3) lr = lift - 1;
         if (gx >= 0 && gx < W && gy - lr >= 0 && gy - lr < H) {
           g[gy - lr][gx] = c;
           if (part.sdata[i]) sg[gy - lr][gx] = 1;

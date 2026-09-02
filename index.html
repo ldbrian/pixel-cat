@@ -54,7 +54,8 @@
     z: { rows: ['XXXXX', '...X.', '..X..', '.X...', 'XXXXX'], color: '#8a92a8' },
     bang: { rows: ['XX', 'XX', 'XX', '..', 'XX'], color: '#5a4a3a' },
     note: { rows: ['..XXX', '..X..', '..X..', '..X..', '.X...', 'XX...', 'XX...'], color: '#d98f70' },
-    dot: { rows: ['..XXX..', '.XXXXX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..'], color: '#e8635a', glint: [2, 1] },
+    dot: { rows: ['X.....X', '.X...X.', '..X.X..', '...X...', '..X.X..', '.X...X.', 'X.....X'], color: '#7eb8da' },
+    dot2: { rows: ['..X.X..', '.X...X.', 'X.....X', '...X...', 'X.....X', '.X...X.', '..X.X..'], color: '#d4a0c0' },
     dust: { rows: ['..X..', '.XXX.', 'XXXXX', '.XXX.', '..X..'], color: '#c9ab8f' }
   };
 
@@ -179,6 +180,7 @@
     var t = (dot.state !== 'hidden' && !holding) ? dot.x : fx;
     var now = performance.now();
     if (now < shyUntil) return clamp((40 - t) / 40, -1, 1) * 2;
+    if (dot.state !== 'hidden' && !holding) return clamp((t - 40) / 40, -1, 1) * 5;
     var amp = level >= 1 ? 2.6 : 2;
     return clamp((t - 40) / 40, -1, 1) * amp;
   }
@@ -285,6 +287,12 @@
     if (dot.state === 'drift') {
       dot.x += dot.vx * dt / 1000;
       dot.y += dot.vy * dt / 1000;
+      if (Math.random() < 0.02) {
+        dot.vx += (Math.random() - 0.5) * 2;
+        dot.vy += (Math.random() - 0.5) * 1.5;
+        dot.vx = clamp(dot.vx, -2, 2);
+        dot.vy = clamp(dot.vy, -1.5, 1.5);
+      }
       if (dot.x < 2) { dot.x = 2; dot.vx = Math.abs(dot.vx); }
       if (dot.x > 78) { dot.x = 78; dot.vx = -Math.abs(dot.vx); }
       if (dot.y < 2) { dot.y = 2; dot.vy = Math.abs(dot.vy); }
@@ -297,13 +305,15 @@
   }
   function drawDot(tNow) {
     if (dot.state === 'hidden') return;
-    var pulse = 1 + 0.15 * Math.sin(tNow / 120);
     var age = tNow - dot.born;
-    var fadeIn = Math.min(1, age / 300);
+    var fadeIn = Math.min(1, age / 400);
     var remain = dot.life - age;
-    var fadeOut = Math.min(1, remain / 500);
+    var fadeOut = Math.min(1, remain / 600);
     var a = fadeIn * fadeOut;
-    drawSprite(SPRITES.dot, ox + dot.x * S, oy + dot.y * S, S * 1.8 * pulse, '#e8635a', a);
+    var wingFrame = Math.floor(tNow / 150) % 2;
+    var sp = wingFrame === 0 ? SPRITES.dot : SPRITES.dot2;
+    var bob = Math.sin(tNow / 300) * 1.5;
+    drawSprite(sp, ox + dot.x * S, oy + (dot.y + bob) * S, S * 1.4, sp.color, a);
   }
   function dotInZone() {
     return dot.state !== 'hidden' && dot.x >= DOT_ZONE.x0 && dot.x <= DOT_ZONE.x1 && dot.y >= DOT_ZONE.y0 && dot.y <= DOT_ZONE.y1;

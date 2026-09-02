@@ -74,6 +74,7 @@
   var bellyDefendUntil = 0, tailFlickUntil = 0, interactFired = false;
   var shyUntil = 0;
   var proactiveCooldown = 0;
+  var tailIdleNext = 0;
 
   // === 光点 ===
   var DOT_GRAB_R = 6;
@@ -749,7 +750,13 @@
       } else {
         if (annoy > 0.45) swayT = Math.sin(tNow / 1000 * 9) * 0.9;
         else if (E > 0.3) swayT = Math.sin(tNow / 1000 * 2.6) * E;
-        else swayT = 0;
+        else if (tNow < tailIdleNext) {
+          var prog = (tNow - (tailIdleNext - 1200)) / 1200;
+          swayT = Math.sin(prog * Math.PI * 3) * 0.3 * (1 - prog);
+        } else {
+          swayT = 0;
+          if (tNow > tailIdleNext) tailIdleNext = tNow + 5000 + Math.random() * 3000;
+        }
         leanT = holding ? clamp((fx - 40) / 26, -1, 1) * 1.8 * Math.min(1, E + 0.4) : gazeLean();
         if (tNow < hbUntil) leanT += hbDir * 2.4;
       }

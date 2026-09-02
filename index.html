@@ -132,6 +132,14 @@
   function doGreeting() {
     if (greeted) return;
     greeted = true;
+    // 立即播放静音音符，保持 AudioContext 活跃（浏览器策略）
+    if (AC) {
+      var osc = AC.createOscillator();
+      var gn = AC.createGain();
+      gn.gain.value = 0;
+      osc.connect(gn); gn.connect(AC.destination);
+      osc.start(); osc.stop(AC.currentTime + 0.01);
+    }
     if (level === 0) {
       setTimeout(function () { maoSound(performance.now()); }, 1200);
     }
